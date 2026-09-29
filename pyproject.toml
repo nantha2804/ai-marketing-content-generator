@@ -1,0 +1,18 @@
+[project]
+name = "ai-marketing-content-generator"
+version = "0.1.0"
+description = "Gradio marketing content generator powered by Hugging Face Inference API"
+readme = "README.md"
+authors = [
+    { name = "nantha2804", email = "nanthakumar112003@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "gradio>=5.0,<6.0",
+    "huggingface-hub>=0.36.2",
+    "python-dotenv>=1.2.3",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.18,<0.13.0"]
+build-backend = "uv_build"
