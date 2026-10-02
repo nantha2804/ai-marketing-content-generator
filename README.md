@@ -46,6 +46,25 @@ gcloud config set project $PROJECT_ID
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
 ```
 
+### Fix "Write access to project was denied"
+
+This message usually means the project has no active billing account, its billing account is suspended/closed, or your Google account cannot view or link billing. In Google Cloud Console, select the exact project ID, open **Billing**, and check **My projects**. If it is not linked, a billing administrator must link it to an active billing account with a valid payment method. Linking a billing account can incur charges.
+
+With the Google Cloud CLI installed and authenticated, inspect the project's billing state:
+
+```powershell
+gcloud billing projects describe $PROJECT_ID
+```
+
+If `billingEnabled` is false or there is no `billingAccountName`, ask the billing account administrator to link the project. If you are that administrator and are authorized to use the account:
+
+```powershell
+$BILLING_ACCOUNT_ID = "000000-000000-000000"
+gcloud billing projects link $PROJECT_ID --billing-account=$BILLING_ACCOUNT_ID
+```
+
+If linking is denied, the administrator must grant your account **Billing Account User** (`roles/billing.user`) on the billing account and **Project Billing Manager** (`roles/billing.projectManager`) on the project, or perform the link for you. If billing is already enabled and active, ask the project or organization administrator to check your project IAM permissions and organization policies. Do not paste billing IDs, payment details, or access tokens into chat.
+
 Create a Secret Manager secret named `huggingface-api-key` in the Google Cloud Console and add your Hugging Face token as its value. Grant the Cloud Run runtime service account access to that secret. For the default Compute Engine service account, run:
 
 ```powershell
