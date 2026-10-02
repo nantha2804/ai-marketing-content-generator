@@ -2,6 +2,25 @@
 
 A Gradio web app that creates marketing drafts from product details using the Hugging Face Inference API. The model runs remotely, so the app container stays small and does not download model weights. Hugging Face usage limits or charges may apply to the selected model/provider.
 
+## Live demo
+
+The app is currently deployed at: https://ai-marketing-content-generator-7syh.onrender.com/
+
+## Deploy to Render
+
+This project is ready to deploy on Render as a web service.
+
+1. Push the repository to GitHub.
+2. In Render, create a new Web Service and connect the GitHub repo.
+3. Use the following settings:
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `python app.py`
+   - Environment Variables:
+     - `HUGGINGFACE_API_KEY` = your Hugging Face access token
+     - `MARKETING_MODEL_ID` = `Qwen/Qwen2.5-0.5B-Instruct`
+     - `PORT` = `10000` (Render sets this automatically; keep the app compatible with it)
+4. Deploy the service and open the generated Render URL.
+
 ## Run locally on Windows
 
 1. Install Python 3.12.
