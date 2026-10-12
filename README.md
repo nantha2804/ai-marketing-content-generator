@@ -17,7 +17,8 @@ This project is ready to deploy on Render as a web service.
    - Start Command: `python app.py`
    - Environment Variables:
      - `HUGGINGFACE_API_KEY` = your Hugging Face access token
-     - `MARKETING_MODEL_ID` = `Qwen/Qwen2.5-0.5B-Instruct`
+     - `MARKETING_MODEL_ID` = `HuggingFaceTB/SmolLM2-1.7B-Instruct`
+     - `HF_PROVIDER` = `hf-inference`
      - `PORT` = `10000` (Render sets this automatically; keep the app compatible with it)
 4. Deploy the service and open the generated Render URL.
 
@@ -42,7 +43,8 @@ This project is ready to deploy on Render as a web service.
 
    ```text
    HUGGINGFACE_API_KEY=hf_your_token_here
-   MARKETING_MODEL_ID=Qwen/Qwen2.5-0.5B-Instruct
+   MARKETING_MODEL_ID=HuggingFaceTB/SmolLM2-1.7B-Instruct
+   HF_PROVIDER=hf-inference
    ```
 
 5. Start the app and open the local address printed in the terminal:
@@ -100,7 +102,7 @@ gcloud run deploy $SERVICE `
   --region $REGION `
   --allow-unauthenticated `
   --set-secrets HUGGINGFACE_API_KEY=huggingface-api-key:latest `
-  --set-env-vars MARKETING_MODEL_ID=Qwen/Qwen2.5-0.5B-Instruct `
+  --set-env-vars MARKETING_MODEL_ID=HuggingFaceTB/SmolLM2-1.7B-Instruct,HF_PROVIDER=hf-inference `
   --memory 1Gi `
   --cpu 1 `
   --min 0 `

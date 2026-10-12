@@ -11,8 +11,9 @@ load_dotenv()
 HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
 MODEL_ID = os.getenv(
     "MARKETING_MODEL_ID",
-    "Qwen/Qwen2.5-0.5B-Instruct"
+    "HuggingFaceTB/SmolLM2-1.7B-Instruct"
 )
+HF_PROVIDER = os.getenv("HF_PROVIDER", "hf-inference")
 
 
 def get_client():
@@ -22,7 +23,7 @@ def get_client():
         )
 
     return InferenceClient(
-        provider="auto",
+        provider=HF_PROVIDER,
         api_key=HUGGINGFACE_API_KEY,
     )
 
@@ -112,7 +113,9 @@ def generate_content(
             f"Could not generate content "
             f"({type(error).__name__}: {error}). "
             "Check your Hugging Face API key, model ID, "
-            "internet connection, and model availability."
+            f"Model: {MODEL_ID}; provider: {HF_PROVIDER}. "
+            "Check that the token has Inference Providers permission and "
+            "that the selected model is available through that provider."
         )
 
 
