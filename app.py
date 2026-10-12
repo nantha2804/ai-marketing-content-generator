@@ -1,3 +1,4 @@
+
 import os
 
 import gradio as gr
@@ -16,12 +17,19 @@ MODEL_ID = os.getenv("GROQ_MODEL_ID", "openai/gpt-oss-20b")
 
 
 def get_client():
-    if not GROQ_API_KEY:
+    api_key = os.getenv("GROQ_API_KEY")
+
+    if not api_key:
         raise ValueError(
-            "GROQ_API_KEY is missing. Add it to your .env file."
+            "GROQ_API_KEY is missing. Configure it in Render "
+            "Environment settings or your local .env file."
         )
 
-    return Groq(api_key=GROQ_API_KEY)
+    return Groq(
+        api_key=api_key,
+        timeout=60.0,
+        max_retries=1,
+    )
 
 
 def build_prompt(
@@ -58,7 +66,7 @@ def build_prompt(
         f"Tone: {tone}\n"
         f"Language: {language}\n"
         f"Length: {length_guide.get(length, length_guide['Medium'])}\n"
-        f"Call to action: "
+        "Call to action: "
         f"{call_to_action.strip() or 'Choose a relevant, low-pressure call to action.'}\n\n"
         "Make the content clear, natural, and ready to use."
     )
@@ -94,7 +102,7 @@ def generate_content(
         )
 
         response = client.chat.completions.create(
-            model=MODEL_ID,
+            model=os.getenv("GROQ_MODEL_ID", "openai/gpt-oss-20b"),
             messages=[
                 {
                     "role": "system",
@@ -118,28 +126,50 @@ def generate_content(
         return content.strip()
 
     except ValueError as error:
+        print(f"Configuration error: {error}")
         return str(error)
 
-    except RateLimitError:
+    except RateLimitError as error:
+        print(f"Groq rate limit error: {error!r}")
         return (
-            "Groq rate limit or quota reached. Please wait, check your "
-            "Groq account limits, and try again."
+            "Groq rate limit or quota reached. Please check your "
+            "Groq account limits and try again later."
         )
 
-    except APIConnectionError:
+    except APIConnectionError as error:
+        # Log technical details for Render troubleshooting.
+        # Do not print the API key.
+        print(
+            f"Groq connection error: {type(error).__name__}: {error!r}"
+        )
+        cause = getattr(error, "__cause__", None)
+        if cause:
+            print(
+                f"Underlying connection cause: "
+                f"{type(cause).__name__}: {cause!r}"
+            )
+
         return (
-            "Could not connect to Groq. Check your internet connection "
-            "and try again."
+            "Could not connect to Groq. Please check the Render "
+            "runtime logs for the detailed connection error."
         )
 
     except APIStatusError as error:
+        print(
+            f"Groq API status error: HTTP {error.status_code}; "
+            f"{type(error).__name__}: {error!r}"
+        )
         return (
             f"Groq API error (HTTP {error.status_code}). "
-            "Check your model ID, API key, and Groq account access."
+            "Check the API key, model ID, and Groq account limits."
         )
 
     except Exception as error:
-        return f"Unexpected error: {type(error).__name__}: {error}"
+        print(
+            f"Unexpected generation error: "
+            f"{type(error).__name__}: {error!r}"
+        )
+        return f"Unexpected error: {type(error).__name__}. Check Render logs."
 
 
 with gr.Blocks(title="AI Marketing Content Generator") as demo:
@@ -257,6 +287,7 @@ with gr.Blocks(title="AI Marketing Content Generator") as demo:
         outputs=output,
     )
 
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 7860))
 
@@ -265,4 +296,3 @@ if __name__ == "__main__":
         server_port=port,
         share=False,
     )
-
