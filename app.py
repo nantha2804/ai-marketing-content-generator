@@ -1,168 +1,179 @@
-
-from dotenv import load_dotenv
 import os
 
 import gradio as gr
-from huggingface_hub import InferenceClient
-
+from dotenv import load_dotenv
+from groq import (
+    Groq,
+    APIConnectionError,
+    APIStatusError,
+    RateLimitError,
+)
 
 load_dotenv()
 
-HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
-MODEL_ID = os.getenv(
-    "MARKETING_MODEL_ID",
-    "HuggingFaceTB/SmolLM2-1.7B-Instruct"
-)
-HF_PROVIDER = os.getenv("HF_PROVIDER", "hf-inference")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+MODEL_ID = os.getenv("GROQ_MODEL_ID", "openai/gpt-oss-20b")
 
 
 def get_client():
-    if not HUGGINGFACE_API_KEY:
+    if not GROQ_API_KEY:
         raise ValueError(
-            "HUGGINGFACE_API_KEY is missing. Add it to your .env file."
+            "GROQ_API_KEY is missing. Add it to your .env file."
         )
 
-    return InferenceClient(
-        provider=HF_PROVIDER,
-        api_key=HUGGINGFACE_API_KEY,
-    )
+    return Groq(api_key=GROQ_API_KEY)
 
 
 def build_prompt(
     product_name,
     product_details,
-    audience,
     platform,
-    format_type,
+    content_format,
+    audience,
     tone,
     language,
-    call_to_action,
     length,
+    call_to_action,
 ):
+    length_guide = {
+        "Short": "Write around 50-80 words.",
+        "Medium": "Write around 100-150 words.",
+        "Long": "Write around 200-300 words.",
+    }
+
     return (
-        f"Create {length.lower()} {format_type.lower()} for {platform}.\n"
-        f"Product or brand: {product_name.strip()}\n"
-        f"Product details: {product_details.strip()}\n"
+        "You are an expert marketing content writer.\n"
+        "Create useful, engaging marketing content based on the "
+        "information provided.\n"
+        "Do not invent product features, statistics, testimonials, "
+        "or unsupported claims.\n"
+        "Follow the requested language, platform, format, tone, "
+        "and length.\n"
+        "Return only the finished marketing content.\n\n"
+        f"Product or service: {product_name.strip()}\n"
+        f"Product details: {product_details.strip() or 'Not provided'}\n"
+        f"Platform: {platform}\n"
+        f"Content format: {content_format}\n"
         f"Target audience: {audience.strip() or 'General audience'}\n"
         f"Tone: {tone}\n"
         f"Language: {language}\n"
+        f"Length: {length_guide.get(length, length_guide['Medium'])}\n"
         f"Call to action: "
         f"{call_to_action.strip() or 'Choose a relevant, low-pressure call to action.'}\n\n"
-        "Write polished, specific marketing copy that fits the platform "
-        "and format. Use only claims supported by the supplied product "
-        "details; do not invent prices, features, statistics, or guarantees. "
-        "Return only the finished content, without analysis or a preamble."
+        "Make the content clear, natural, and ready to use."
     )
 
 
 def generate_content(
     product_name,
     product_details,
-    audience,
     platform,
-    format_type,
+    content_format,
+    audience,
     tone,
     language,
-    call_to_action,
     length,
+    call_to_action,
 ):
     if not product_name or not product_name.strip():
-        return "Add a product or brand name to generate content."
-
-    if not product_details or not product_details.strip():
-        return "Add a few product details so the copy stays specific and accurate."
-
-    prompt = build_prompt(
-        product_name,
-        product_details,
-        audience,
-        platform,
-        format_type,
-        tone,
-        language,
-        call_to_action,
-        length,
-    )
+        return "Please enter a product or service name."
 
     try:
         client = get_client()
 
-        response = client.chat_completion(
+        prompt = build_prompt(
+            product_name,
+            product_details or "",
+            platform,
+            content_format,
+            audience or "",
+            tone,
+            language,
+            length,
+            call_to_action or "",
+        )
+
+        response = client.chat.completions.create(
             model=MODEL_ID,
             messages=[
                 {
                     "role": "system",
                     "content": (
-                        "You are a careful, creative marketing copywriter."
+                        "You are a professional marketing copywriter. "
+                        "Write accurate, audience-focused content."
                     ),
                 },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
+                {"role": "user", "content": prompt},
             ],
-            max_tokens=450,
+            max_tokens=700,
             temperature=0.7,
             top_p=0.9,
         )
 
-        return response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
 
-    except Exception as error:
+        if not content:
+            return "The model returned an empty response. Please try again."
+
+        return content.strip()
+
+    except ValueError as error:
+        return str(error)
+
+    except RateLimitError:
         return (
-            f"Could not generate content "
-            f"({type(error).__name__}: {error}). "
-            "Check your Hugging Face API key, model ID, "
-            f"Model: {MODEL_ID}; provider: {HF_PROVIDER}. "
-            "Check that the token has Inference Providers permission and "
-            "that the selected model is available through that provider."
+            "Groq rate limit or quota reached. Please wait, check your "
+            "Groq account limits, and try again."
         )
 
+    except APIConnectionError:
+        return (
+            "Could not connect to Groq. Check your internet connection "
+            "and try again."
+        )
 
-with gr.Blocks(
-    title="AI Marketing Content Generator",
-    theme=gr.themes.Soft(),
-) as demo:
+    except APIStatusError as error:
+        return (
+            f"Groq API error (HTTP {error.status_code}). "
+            "Check your model ID, API key, and Groq account access."
+        )
 
+    except Exception as error:
+        return f"Unexpected error: {type(error).__name__}: {error}"
+
+
+with gr.Blocks(title="AI Marketing Content Generator") as demo:
+    gr.Markdown("# AI Marketing Content Generator")
     gr.Markdown(
-        "# AI Marketing Content Generator\n"
-        "Create marketing content using the Hugging Face Inference API."
+        "Generate marketing content for different platforms "
+        "using Python, Gradio, and the Groq API."
     )
 
     with gr.Row():
-
-        with gr.Column(scale=1):
-
+        with gr.Column():
             product_name = gr.Textbox(
-                label="Product or brand",
-                placeholder="e.g. Northstar Coffee",
+                label="Product or Service Name",
+                placeholder="Example: Organic skincare products",
             )
 
             product_details = gr.Textbox(
-                label="Product details",
-                placeholder=(
-                    "What it does, notable features, "
-                    "and facts the copy can safely mention"
-                ),
-                lines=5,
+                label="Product Details",
+                placeholder="Describe the product, benefits, and features",
+                lines=3,
             )
 
             audience = gr.Textbox(
-                label="Target audience",
-                placeholder=(
-                    "e.g. Busy commuters who enjoy specialty coffee"
-                ),
+                label="Target Audience",
+                placeholder="Example: Young adults interested in skincare",
             )
 
             call_to_action = gr.Textbox(
-                label="Call to action",
-                placeholder="e.g. Explore the new collection",
+                label="Call to Action",
+                placeholder="Example: Shop now",
             )
 
-        with gr.Column(scale=1):
-
             platform = gr.Dropdown(
-                [
+                choices=[
                     "Instagram",
                     "LinkedIn",
                     "Facebook",
@@ -174,8 +185,8 @@ with gr.Blocks(
                 label="Platform",
             )
 
-            format_type = gr.Dropdown(
-                [
+            content_format = gr.Dropdown(
+                choices=[
                     "Social media post",
                     "Advertisement",
                     "Email",
@@ -183,11 +194,11 @@ with gr.Blocks(
                     "Blog outline",
                 ],
                 value="Social media post",
-                label="Content format",
+                label="Content Format",
             )
 
             tone = gr.Dropdown(
-                [
+                choices=[
                     "Friendly",
                     "Professional",
                     "Playful",
@@ -200,7 +211,7 @@ with gr.Blocks(
             )
 
             language = gr.Dropdown(
-                [
+                choices=[
                     "English",
                     "Spanish",
                     "French",
@@ -212,47 +223,43 @@ with gr.Blocks(
             )
 
             length = gr.Radio(
-                ["Short", "Medium", "Long"],
-                value="Short",
-                label="Length",
+                choices=["Short", "Medium", "Long"],
+                value="Medium",
+                label="Content Length",
             )
 
-    generate_button = gr.Button(
-        "Generate content",
-        variant="primary",
-    )
+            generate_button = gr.Button(
+                "Generate Content",
+                variant="primary",
+            )
 
-    output = gr.Textbox(
-        label="Generated content",
-        lines=10,
-        interactive=False,
-    )
-
-    gr.Markdown(
-        "Review generated copy for accuracy and brand fit before publishing."
-    )
+        with gr.Column():
+            output = gr.Textbox(
+                label="Generated Marketing Content",
+                lines=18,
+                show_copy_button=True,
+                placeholder="Your generated content will appear here.",
+            )
 
     generate_button.click(
         fn=generate_content,
         inputs=[
             product_name,
             product_details,
-            audience,
             platform,
-            format_type,
+            content_format,
+            audience,
             tone,
             language,
-            call_to_action,
             length,
+            call_to_action,
         ],
         outputs=output,
     )
 
-
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "7860"))
     demo.launch(
-        server_name="0.0.0.0",
-        server_port=port
+        server_name="127.0.0.1",
+        server_port=7860,
+        share=False,
     )
-
