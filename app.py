@@ -12,12 +12,13 @@ from groq import (
 
 load_dotenv()
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-MODEL_ID = os.getenv("GROQ_MODEL_ID", "openai/gpt-oss-20b")
+GROQ_API_KEY = (os.getenv("GROQ_API_KEY") or "").strip().strip('"').strip("'")
+MODEL_ID = os.getenv("GROQ_MODEL_ID", "llama-3.3-70b-versatile").strip()
+GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").strip()
 
 
 def get_client():
-    api_key = os.getenv("GROQ_API_KEY")
+    api_key = (os.getenv("GROQ_API_KEY") or "").strip().strip('"').strip("'")
 
     if not api_key:
         raise ValueError(
@@ -27,8 +28,9 @@ def get_client():
 
     return Groq(
         api_key=api_key,
+        base_url=GROQ_BASE_URL,
         timeout=60.0,
-        max_retries=1,
+        max_retries=2,
     )
 
 
@@ -102,7 +104,7 @@ def generate_content(
         )
 
         response = client.chat.completions.create(
-            model=os.getenv("GROQ_MODEL_ID", "openai/gpt-oss-20b"),
+            model=MODEL_ID,
             messages=[
                 {
                     "role": "system",
@@ -149,9 +151,10 @@ def generate_content(
                 f"{type(cause).__name__}: {cause!r}"
             )
 
+        detail = str(error).splitlines()[0][:180] or type(error).__name__
         return (
-            "Could not connect to Groq. Please check the Render "
-            "runtime logs for the detailed connection error."
+            "Could not connect to Groq. "
+            f"Model: {MODEL_ID}. Connection detail: {detail}"
         )
 
     except APIStatusError as error:

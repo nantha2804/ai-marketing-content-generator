@@ -1,126 +1,62 @@
 # AI Marketing Content Generator
 
-A Gradio web app that creates marketing drafts from product details using the Hugging Face Inference API. The model runs remotely, so the app container stays small and does not download model weights. Hugging Face usage limits or charges may apply to the selected model/provider.
+Generate ready-to-use marketing copy with Gradio and the Groq API.
 
 ## Live demo
 
-The app is currently deployed at: https://ai-marketing-content-generator-7syh.onrender.com/
+[Open the deployed app](https://ai-marketing-content-generator-7syh.onrender.com/)
 
-## Deploy to Render
+> The Render free service may sleep after inactivity. The first request can take a minute while the service wakes up.
 
-This project is ready to deploy on Render as a web service.
+## Run locally
 
-1. Push the repository to GitHub.
-2. In Render, create a new Web Service and connect the GitHub repo.
-3. Use the following settings:
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `python app.py`
-   - Environment Variables:
-     - `HUGGINGFACE_API_KEY` = your Hugging Face access token
-     - `MARKETING_MODEL_ID` = `HuggingFaceTB/SmolLM2-1.7B-Instruct`
-     - `HF_PROVIDER` = `hf-inference`
-     - `PORT` = `10000` (Render sets this automatically; keep the app compatible with it)
-4. Deploy the service and open the generated Render URL.
+1. Create and activate a Python virtual environment.
+2. Install dependencies:
 
-## Run locally on Windows
-
-1. Install Python 3.12.
-2. Open PowerShell in this folder and create/activate a virtual environment:
-
-   ```powershell
-   py -3.12 -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   ```
-
-3. Install dependencies:
-
-   ```powershell
-   python -m pip install --upgrade pip
+   ```bash
    pip install -r requirements.txt
    ```
 
-4. Create a Hugging Face access token with permission to use Inference Providers. Add it to a local `.env` file:
+3. Copy `.env.example` to `.env` and set a valid Groq key:
 
-   ```text
-   HUGGINGFACE_API_KEY=hf_your_token_here
-   MARKETING_MODEL_ID=HuggingFaceTB/SmolLM2-1.7B-Instruct
-   HF_PROVIDER=hf-inference
+   ```env
+   GROQ_API_KEY=your_groq_api_key
+   GROQ_MODEL_ID=llama-3.3-70b-versatile
    ```
 
-5. Start the app and open the local address printed in the terminal:
+4. Start the app:
 
-   ```powershell
+   ```bash
    python app.py
    ```
 
-The app defaults to port 7860 locally. Do not commit `.env` or share its token.
+Open `http://localhost:7860`.
 
-## Deploy to Google Cloud Run
+## Render deployment
 
-You need a Google Cloud project with billing enabled, the Google Cloud CLI installed, and a Hugging Face token. Sign in with `gcloud auth login`, then set the project and region in PowerShell:
+1. Push the latest changes to the GitHub repository connected to Render.
+2. In Render, open the Web Service and choose **Manual Deploy > Deploy latest commit** (or enable automatic deploys).
+3. In **Environment**, add `GROQ_API_KEY` with the key from the Groq Console. Do not commit the key to Git.
+4. Set `GROQ_MODEL_ID` to `llama-3.3-70b-versatile` unless you have confirmed another model is available in your Groq account.
+5. Confirm the service uses the repository `Dockerfile`, or use:
 
-```powershell
-$PROJECT_ID = "your-project-id"
-$REGION = "us-central1"
-$SERVICE = "ai-marketing-content-generator"
-gcloud config set project $PROJECT_ID
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
-```
+   - Build command: `pip install -r requirements.txt`
+   - Start command: `python app.py`
 
-### Fix "Write access to project was denied"
+6. Save the environment variables and redeploy. Check **Logs** for startup or Groq API errors.
+7. Open the live URL, wait for Render to wake the service, enter a product name, and click **Generate Content**.
 
-This message usually means the project has no active billing account, its billing account is suspended/closed, or your Google account cannot view or link billing. In Google Cloud Console, select the exact project ID, open **Billing**, and check **My projects**. If it is not linked, a billing administrator must link it to an active billing account with a valid payment method. Linking a billing account can incur charges.
+## Troubleshooting
 
-With the Google Cloud CLI installed and authenticated, inspect the project's billing state:
+- `GROQ_API_KEY is missing`: add the variable in Render Environment settings and redeploy.
+- `Groq API error (HTTP 401)`: the key is invalid, expired, or includes an accidental extra value.
+- `Groq API error (HTTP 400)`: verify `GROQ_MODEL_ID` is an active model ID.
+- Connection error after a cold start: refresh once after Render reports that the service is live, then inspect the Render runtime logs.
+- Never paste the API key into source code, README files, or screenshots.
 
-```powershell
-gcloud billing projects describe $PROJECT_ID
-```
+## Project files
 
-If `billingEnabled` is false or there is no `billingAccountName`, ask the billing account administrator to link the project. If you are that administrator and are authorized to use the account:
-
-```powershell
-$BILLING_ACCOUNT_ID = "000000-000000-000000"
-gcloud billing projects link $PROJECT_ID --billing-account=$BILLING_ACCOUNT_ID
-```
-
-If linking is denied, the administrator must grant your account **Billing Account User** (`roles/billing.user`) on the billing account and **Project Billing Manager** (`roles/billing.projectManager`) on the project, or perform the link for you. If billing is already enabled and active, ask the project or organization administrator to check your project IAM permissions and organization policies. Do not paste billing IDs, payment details, or access tokens into chat.
-
-Create a Secret Manager secret named `huggingface-api-key` in the Google Cloud Console and add your Hugging Face token as its value. Grant the Cloud Run runtime service account access to that secret. For the default Compute Engine service account, run:
-
-```powershell
-$PROJECT_NUMBER = gcloud projects describe $PROJECT_ID --format="value(projectNumber)"
-$RUNTIME_SA = "$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
-gcloud secrets add-iam-policy-binding huggingface-api-key --project=$PROJECT_ID --member="serviceAccount:$RUNTIME_SA" --role="roles/secretmanager.secretAccessor"
-```
-
-If your service uses a custom runtime service account, grant access to that account instead. Deploy from the project folder:
-
-```powershell
-gcloud run deploy $SERVICE `
-  --source . `
-  --region $REGION `
-  --allow-unauthenticated `
-  --set-secrets HUGGINGFACE_API_KEY=huggingface-api-key:latest `
-  --set-env-vars MARKETING_MODEL_ID=HuggingFaceTB/SmolLM2-1.7B-Instruct,HF_PROVIDER=hf-inference `
-  --memory 1Gi `
-  --cpu 1 `
-  --min 0 `
-  --max 3 `
-  --timeout 300
-```
-
-The command prints the deployed service URL. `--allow-unauthenticated` makes the web UI public; remove it if the app should require Google authentication. Cloud Run injects its `PORT`, and the app binds to that port on `0.0.0.0`.
-
-## Container build
-
-The included Dockerfile uses the locked `uv` dependencies. If Docker is installed, build and run locally with:
-
-```powershell
-docker build -t ai-marketing-content-generator .
-docker run --rm -p 8080:8080 -e HUGGINGFACE_API_KEY=your_token_here ai-marketing-content-generator
-```
-
-Open `http://localhost:8080`. For local testing, prefer setting the token in your shell rather than putting it in a committed file.
-
-Generated copy is a draft. Verify claims and brand requirements before publishing.
+- `app.py` — Gradio UI and Groq request handling.
+- `requirements.txt` — Python dependencies.
+- `Dockerfile` — container setup for deployment.
+- `.env.example` — local environment variable template.
