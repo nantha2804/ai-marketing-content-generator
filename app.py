@@ -1,5 +1,6 @@
 
 import os
+from urllib.parse import urlparse
 
 import gradio as gr
 from dotenv import load_dotenv
@@ -13,24 +14,96 @@ from groq import (
 load_dotenv()
 
 GROQ_API_KEY = (os.getenv("GROQ_API_KEY") or "").strip().strip('"').strip("'")
-MODEL_ID = os.getenv("GROQ_MODEL_ID", "llama-3.3-70b-versatile").strip()
-GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").strip()
+MODEL_ID = (os.getenv("GROQ_MODEL_ID") or "").strip().strip('"').strip("'")
+GROQ_BASE_URL = (os.getenv("GROQ_BASE_URL") or "https://api.groq.com/openai/v1").strip()
+
+# Keep a preference order, but do not assume that one model ID will remain
+# available forever.  The client resolves the first model that Groq currently
+# exposes for the account.
+PREFERRED_MODELS = (
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "openai/gpt-oss-20b",
+)
+
+
+def normalize_base_url(value):
+    """Return the OpenAI-compatible API root expected by the Groq SDK."""
+    value = value.rstrip("/")
+    if not value:
+        return "https://api.groq.com/openai/v1"
+
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(
+            "GROQ_BASE_URL must be a full URL such as "
+            "https://api.groq.com/openai/v1."
+        )
+
+    for suffix in ("/chat/completions", "/models"):
+        if value.endswith(suffix):
+            value = value[: -len(suffix)]
+    return value.rstrip("/")
 
 
 def get_client():
     api_key = (os.getenv("GROQ_API_KEY") or "").strip().strip('"').strip("'")
 
-    if not api_key:
+    if not api_key or api_key.lower() in {
+        "your_real_groq_key",
+        "your_actual_groq_api_key",
+        "your_groq_api_key",
+    }:
         raise ValueError(
-            "GROQ_API_KEY is missing. Configure it in Render "
-            "Environment settings or your local .env file."
+            "GROQ_API_KEY is missing or still a placeholder. Create a key at "
+            "https://console.groq.com/keys and set it in .env or Render "
+            "Environment settings. Do not include quotes or spaces."
         )
 
     return Groq(
         api_key=api_key,
-        base_url=GROQ_BASE_URL,
+        base_url=normalize_base_url(GROQ_BASE_URL),
         timeout=60.0,
         max_retries=2,
+    )
+
+
+def resolve_model(client):
+    """Return a model currently available to this Groq account.
+
+    GROQ_MODEL_ID remains supported as an explicit override.  When it is not
+    set, models are discovered through Groq's models endpoint so a retired or
+    account-incompatible default cannot cause a permanent HTTP 404.
+    """
+    available = client.models.list().data
+    available_ids = {model.id for model in available}
+
+    if MODEL_ID:
+        if MODEL_ID not in available_ids:
+            sample = ", ".join(sorted(available_ids)[:8])
+            raise ValueError(
+                f"GROQ_MODEL_ID '{MODEL_ID}' is not available for this Groq key. "
+                f"Available models include: {sample or 'none'}. "
+                "Remove GROQ_MODEL_ID to enable automatic selection."
+            )
+        return MODEL_ID
+
+    for preferred in PREFERRED_MODELS:
+        if preferred in available_ids:
+            return preferred
+
+    # Last resort: choose a non-speech, non-embedding model exposed by the API.
+    candidates = sorted(
+        model_id
+        for model_id in available_ids
+        if not any(word in model_id.lower() for word in ("whisper", "guard", "embed"))
+    )
+    if candidates:
+        return candidates[0]
+
+    raise ValueError(
+        "Groq returned no usable chat models for this API key. "
+        "Check the key's project permissions and account limits."
     )
 
 
@@ -103,8 +176,10 @@ def generate_content(
             call_to_action or "",
         )
 
+        model_id = resolve_model(client)
+        print(f"Using Groq model: {model_id}")
         response = client.chat.completions.create(
-            model=MODEL_ID,
+            model=model_id,
             messages=[
                 {
                     "role": "system",
@@ -154,7 +229,7 @@ def generate_content(
         detail = str(error).splitlines()[0][:180] or type(error).__name__
         return (
             "Could not connect to Groq. "
-            f"Model: {MODEL_ID}. Connection detail: {detail}"
+            f"Connection detail: {detail}"
         )
 
     except APIStatusError as error:
@@ -162,10 +237,31 @@ def generate_content(
             f"Groq API status error: HTTP {error.status_code}; "
             f"{type(error).__name__}: {error!r}"
         )
-        return (
-            f"Groq API error (HTTP {error.status_code}). "
-            "Check the API key, model ID, and Groq account limits."
-        )
+        response = getattr(error, "response", None)
+        response_detail = ""
+        if response is not None:
+            try:
+                payload = response.json()
+                response_detail = str(payload.get("error", payload))[:300]
+            except Exception:
+                response_detail = (getattr(response, "text", "") or "")[:300]
+
+        if error.status_code == 401:
+            message = "GROQ_API_KEY is invalid or expired. Create a new key and update .env/Render."
+        elif error.status_code == 404:
+            message = (
+                "Groq returned 404. The configured endpoint or model is not available. "
+                "Remove GROQ_MODEL_ID and leave GROQ_BASE_URL as "
+                "https://api.groq.com/openai/v1 so the app can discover a valid model."
+            )
+        elif error.status_code == 429:
+            message = "Groq rate limit or quota reached. Check your Groq account limits."
+        else:
+            message = f"Groq returned HTTP {error.status_code}."
+
+        if response_detail:
+            message += f" Details: {response_detail}"
+        return message
 
     except Exception as error:
         print(
