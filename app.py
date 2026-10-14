@@ -12,8 +12,7 @@ from groq import (
 )
 
 load_dotenv()
-
-GROQ_API_KEY = (os.getenv("GROQ_API_KEY ('"').strip("'")
+GROQ_API_KEY = (os.getenv("GROQ_API_KEY") or "").strip().strip('"').strip("'")
 MODEL_ID = (os.getenv("GROQ_MODEL_ID") or "").strip().strip('"').strip("'")
 GROQ_BASE_URL = (os.getenv("GROQ_BASE_URL") or "https://api.groq.com").strip()
 
@@ -73,11 +72,10 @@ def get_client():
         )
 
     return Groq(
-        api_key=api_key,
-        base_url=normalize_base_url(GROQ_BASE_URL),
-        timeout=60.0,
-        max_retries=2,
-    )
+    api_key=api_key,
+    timeout=60.0,
+    max_retries=2,
+)
 
 
 def resolve_model(client):
