@@ -21,7 +21,8 @@ Generate ready-to-use marketing copy with Gradio and the Groq API.
 
    ```env
    GROQ_API_KEY=your_groq_api_key
-   GROQ_MODEL_ID=llama-3.3-70b-versatile
+   GROQ_MODEL_ID=
+   GROQ_BASE_URL=https://api.groq.com/openai/v1
    ```
 
 4. Start the app:
@@ -37,7 +38,7 @@ Open `http://localhost:7860`.
 1. Push the latest changes to the GitHub repository connected to Render.
 2. In Render, open the Web Service and choose **Manual Deploy > Deploy latest commit** (or enable automatic deploys).
 3. In **Environment**, add `GROQ_API_KEY` with the key from the Groq Console. Do not commit the key to Git.
-4. Set `GROQ_MODEL_ID` to `llama-3.3-70b-versatile` unless you have confirmed another model is available in your Groq account.
+4. Leave `GROQ_MODEL_ID` blank so the app discovers a model available to your Groq key, and set `GROQ_BASE_URL` to `https://api.groq.com/openai/v1`.
 5. Confirm the service uses the repository `Dockerfile`, or use:
 
    - Build command: `pip install -r requirements.txt`

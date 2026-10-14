@@ -13,9 +13,9 @@ from groq import (
 
 load_dotenv()
 
-GROQ_API_KEY = (os.getenv("GROQ_API_KEY") or "").strip().strip('"').strip("'")
+GROQ_API_KEY = (os.getenv("GROQ_API_KEY ('"').strip("'")
 MODEL_ID = (os.getenv("GROQ_MODEL_ID") or "").strip().strip('"').strip("'")
-GROQ_BASE_URL = (os.getenv("GROQ_BASE_URL") or "https://api.groq.com/openai/v1").strip()
+GROQ_BASE_URL = (os.getenv("GROQ_BASE_URL") or "https://api.groq.com").strip()
 
 # Keep a preference order, but do not assume that one model ID will remain
 # available forever.  The client resolves the first model that Groq currently
@@ -28,7 +28,12 @@ PREFERRED_MODELS = (
 
 
 def normalize_base_url(value):
-    """Return the OpenAI-compatible API root expected by the Groq SDK."""
+    """Return the OpenAI-compatible API root expected by the Groq SDK.
+
+    Groq's SDK uses the OpenAI-compatible ``/openai/v1`` path as part of its
+    base URL. Accept a host, API root, or endpoint URL so old deployments do
+    not fail with a 404 because the path was omitted or duplicated.
+    """
     value = value.rstrip("/")
     if not value:
         return "https://api.groq.com/openai/v1"
@@ -40,10 +45,17 @@ def normalize_base_url(value):
             "https://api.groq.com/openai/v1."
         )
 
-    for suffix in ("/chat/completions", "/models"):
+    for suffix in (
+        "/openai/v1/chat/completions",
+        "/openai/v1/models",
+        "/chat/completions",
+        "/models",
+    ):
         if value.endswith(suffix):
             value = value[: -len(suffix)]
-    return value.rstrip("/")
+    if not value.endswith("/openai/v1"):
+        value = f"{value}/openai/v1"
+    return value
 
 
 def get_client():
@@ -251,8 +263,8 @@ def generate_content(
         elif error.status_code == 404:
             message = (
                 "Groq returned 404. The configured endpoint or model is not available. "
-                "Remove GROQ_MODEL_ID and leave GROQ_BASE_URL as "
-                "https://api.groq.com/openai/v1 so the app can discover a valid model."
+                "Check GROQ_BASE_URL is https://api.groq.com and remove "
+                "GROQ_MODEL_ID to let the app discover a valid model."
             )
         elif error.status_code == 429:
             message = "Groq rate limit or quota reached. Check your Groq account limits."
