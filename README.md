@@ -4,7 +4,7 @@ Generate ready-to-use marketing copy with Gradio and the Groq API.
 
 ## Live demo
 
-[Open the deployed app](https://ai-marketing-content-generator-7syh.onrender.com/)
+[Open the deployed app](https://ai-marketing-content-generator-1.onrender.com/)
 
 > The Render free service may sleep after inactivity. The first request can take a minute while the service wakes up.
 
@@ -21,8 +21,7 @@ Generate ready-to-use marketing copy with Gradio and the Groq API.
 
    ```env
    GROQ_API_KEY=your_groq_api_key
-   GROQ_MODEL_ID=
-   GROQ_BASE_URL=https://api.groq.com/openai/v1
+   GROQ_MODEL_ID=openai/gpt-oss-20b
    ```
 
 4. Start the app:
@@ -38,8 +37,8 @@ Open `http://localhost:7860`.
 1. Push the latest changes to the GitHub repository connected to Render.
 2. In Render, open the Web Service and choose **Manual Deploy > Deploy latest commit** (or enable automatic deploys).
 3. In **Environment**, add `GROQ_API_KEY` with the key from the Groq Console. Do not commit the key to Git.
-4. Leave `GROQ_MODEL_ID` blank so the app discovers a model available to your Groq key, and set `GROQ_BASE_URL` to `https://api.groq.com/openai/v1`.
-5. Confirm the service uses the repository `Dockerfile`, or use:
+4. Set `GROQ_MODEL_ID` to a model available to your Groq key, such as `openai/gpt-oss-20b`. Do not add `GROQ_BASE_URL` for the standard Groq API.
+5. Use the Python runtime settings:
 
    - Build command: `pip install -r requirements.txt`
    - Start command: `python app.py`
